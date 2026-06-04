@@ -1,24 +1,3 @@
-from fastapi.responses import JSONResponse
-from fastapi import Request, FastAPI
-
-# Tự động bắt lỗi ở tầng cao nhất trước khi lỗi đi vào xử lý hàm định tuyến của app
-@FastAPI.middleware(FastAPI, "http")
-async def auth_exception_middleware(request: Request, call_next):
-    if request.url.path == "/readings" and request.method == "POST":
-        token = request.headers.get("Authorization")
-        if not token or "Bearer" not in token:
-            return JSONResponse(
-                status_code=401,
-                content={
-                    "type": "about:blank",
-                    "title": "Unauthorized",
-                    "status": 401,
-                    "detail": "Missing or invalid authentication token.",
-                    "instance": request.url.path
-                }
-            )
-    return await call_next(request)
-
 import os
 from datetime import datetime, timezone
 from enum import Enum
@@ -29,20 +8,15 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-
 SERVICE_NAME = os.getenv("SERVICE_NAME", "iot-ingestion")
 SERVICE_VERSION = os.getenv("SERVICE_VERSION", "0.4.0")
-AUTH_TOKEN = os.getenv("AUTH_TOKEN", "local-dev-token")
-
+AUTH_TOKEN = os.getenv("AUTH_TOKEN", "mock_secret_token")
 
 app = FastAPI(
     title="FIT4110 Lab 04 - IoT Ingestion Service",
     version=SERVICE_VERSION,
-    description=(
-        "Dockerized IoT Ingestion API aligned with the Lab 03 OpenAPI/Postman contract."
-    ),
+    description="Dockerized IoT Ingestion API aligned with the Lab 03 OpenAPI/Postman contract.",
 )
-
 
 class SensorMetric(str, Enum):
     temperature = "temperature"
@@ -50,13 +24,11 @@ class SensorMetric(str, Enum):
     motion = "motion"
     smoke = "smoke"
 
-
 class SensorUnit(str, Enum):
     celsius = "celsius"
     percent = "percent"
     boolean = "boolean"
     ppm = "ppm"
-
 
 class ProblemDetails(BaseModel):
     type: str = "about:blank"
@@ -65,36 +37,17 @@ class ProblemDetails(BaseModel):
     detail: str
     instance: Optional[str] = None
 
-
 class HealthResponse(BaseModel):
     status: str
     service: str
     version: str
 
-
 class SensorReadingCreate(BaseModel):
     device_id: str = Field(..., min_length=3, examples=["ESP32-LAB-A01"])
     metric: SensorMetric = Field(..., examples=["temperature"])
-    value: float = Field(
-        ...,
-        ge=-40,
-        le=80,
-        description="Boundary range used in Lab 03 and Lab 04: -40 to 80.",
-        examples=[31.5],
-    )
+    value: float = Field(..., ge=-40, le=80, description="Boundary range: -40 to 80.", examples=[31.5])
     unit: Optional[SensorUnit] = Field(default=None, examples=["celsius"])
     timestamp: str = Field(..., examples=["2026-05-13T08:30:00+07:00"])
-
-
-class SensorReading(BaseModel):
-    reading_id: str
-    device_id: str
-    metric: SensorMetric
-    value: float
-    unit: Optional[SensorUnit] = None
-    timestamp: str
-    created_at: str
-
 
 class SensorReadingCreated(BaseModel):
     reading_id: str
@@ -103,28 +56,13 @@ class SensorReadingCreated(BaseModel):
     accepted: bool
     created_at: str
 
-
 READINGS: List[Dict] = []
 
-
-def build_problem(
-    *,
-    status_code: int,
-    title: str,
-    detail: str,
-    instance: Optional[str] = None,
-    problem_type: str = "about:blank",
-) -> Dict:
-    problem = {
-        "type": problem_type,
-        "title": title,
-        "status": status_code,
-        "detail": detail,
-    }
+def build_problem(*, status_code: int, title: str, detail: str, instance: Optional[str] = None, problem_type: str = "about:blank") -> Dict:
+    problem = {"type": problem_type, "title": title, "status": status_code, "detail": detail}
     if instance:
         problem["instance"] = instance
     return problem
-
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
@@ -137,30 +75,18 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
             detail=str(exc.detail),
             instance=str(request.url.path),
         )
-
-    problem.setdefault("status", exc.status_code)
-    problem.setdefault("title", status.HTTP_STATUS_CODES.get(exc.status_code, "HTTP Error"))
-    problem.setdefault("type", "about:blank")
-    problem.setdefault("detail", "Request failed")
-    problem.setdefault("instance", str(request.url.path))
-
     return JSONResponse(
         status_code=exc.status_code,
         content=problem,
-        media_type="application/problem+json",
-        headers=getattr(exc, "headers", None),
+        media_type="application/problem+json"
     )
 
-
 @app.exception_handler(RequestValidationError)
-async def validation_exception_handler(
-    request: Request, exc: RequestValidationError
-) -> JSONResponse:
+async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     first_error = exc.errors()[0] if exc.errors() else {}
     location = ".".join(str(item) for item in first_error.get("loc", []))
     message = first_error.get("msg", "Request validation error")
     detail = f"{location}: {message}" if location else message
-
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content=build_problem(
@@ -173,7 +99,6 @@ async def validation_exception_handler(
         media_type="application/problem+json",
     )
 
-
 def verify_bearer_token(authorization: Optional[str] = Header(default=None)) -> None:
     if not authorization:
         raise HTTPException(
@@ -185,8 +110,7 @@ def verify_bearer_token(authorization: Optional[str] = Header(default=None)) -> 
                 problem_type="https://smart-campus.local/problems/unauthorized",
             ),
         )
-
-    expected = f"Bearer {AUTH_TOKEN}"
+    expected = "Bearer mock_secret_token"
     if authorization != expected:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -198,89 +122,38 @@ def verify_bearer_token(authorization: Optional[str] = Header(default=None)) -> 
             ),
         )
 
-
-def now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
-
-
-def next_reading_id() -> str:
-    today = datetime.now(timezone.utc).strftime("%Y%m%d")
-    return f"R-{today}-{len(READINGS) + 1:04d}"
-
-
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
-    return HealthResponse(
-        status="ok",
-        service=SERVICE_NAME,
-        version=SERVICE_VERSION,
-    )
+    return HealthResponse(status="ok", service=SERVICE_NAME, version=SERVICE_VERSION)
 
-
-@app.post(
-    "/readings",
-    response_model=SensorReadingCreated,
-    status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(verify_bearer_token)],
-    responses={
-        401: {"model": ProblemDetails},
-        422: {"model": ProblemDetails},
-        429: {"model": ProblemDetails},
-    },
-)
+@app.post("/readings", response_model=SensorReadingCreated, status_code=status.HTTP_201_CREATED, dependencies=[Depends(verify_bearer_token)])
 def create_reading(payload: SensorReadingCreate, response: Response) -> SensorReadingCreated:
     if payload.metric == SensorMetric.temperature and payload.value >= 70:
         response.headers["X-Warning"] = "high-temperature"
-
-    reading_id = next_reading_id()
-    created_at = now_iso()
-
+    today = datetime.now(timezone.utc).strftime("%Y%m%d")
+    reading_id = f"R-{today}-{len(READINGS) + 1:04d}"
+    created_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     item = {
-        "reading_id": reading_id,
-        "device_id": payload.device_id,
-        "metric": payload.metric.value,
-        "value": payload.value,
-        "unit": payload.unit.value if payload.unit else None,
-        "timestamp": payload.timestamp,
-        "created_at": created_at,
+        "reading_id": reading_id, "device_id": payload.device_id, "metric": payload.metric.value,
+        "value": payload.value, "unit": payload.unit.value if payload.unit else None,
+        "timestamp": payload.timestamp, "created_at": created_at,
     }
     READINGS.append(item)
-
-    return SensorReadingCreated(
-        reading_id=reading_id,
-        device_id=payload.device_id,
-        metric=payload.metric,
-        accepted=True,
-        created_at=created_at,
-    )
-
+    return SensorReadingCreated(reading_id=reading_id, device_id=payload.device_id, metric=payload.metric, accepted=True, created_at=created_at)
 
 @app.get("/readings/latest", dependencies=[Depends(verify_bearer_token)])
-def latest_readings(
-    device_id: Optional[str] = Query(default=None),
-    limit: int = Query(default=10, ge=1, le=100),
-) -> Dict[str, List[Dict]]:
+def latest_readings(device_id: Optional[str] = Query(default=None), limit: int = Query(default=10, ge=1, le=100)) -> Dict:
     items = READINGS
-
     if device_id:
         items = [item for item in items if item["device_id"] == device_id]
-
     return {"items": items[-limit:]}
-
 
 @app.get("/readings/{reading_id}", dependencies=[Depends(verify_bearer_token)])
 def get_reading(reading_id: str) -> Dict:
     for item in READINGS:
         if item["reading_id"] == reading_id:
             return item
-
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
-        detail=build_problem(
-            status_code=status.HTTP_404_NOT_FOUND,
-            title="Not Found",
-            detail=f"Reading {reading_id} does not exist",
-            instance=f"/readings/{reading_id}",
-            problem_type="https://smart-campus.local/problems/not-found",
-        ),
+        detail=build_problem(status_code=status.HTTP_404_NOT_FOUND, title="Not Found", detail=f"Reading {reading_id} does not exist", instance=f"/readings/{reading_id}"),
     )
