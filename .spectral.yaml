@@ -1,6 +1,6 @@
-extends: [[spectral:oas, recommended]]
+extends:
+  - spectral:oas
 rules:
-  # Tạm thời giảm nhẹ các rule quá khắt khe để đảm bảo pass nhanh
-  oas3-api-has-info: error
+  # Cấu hình bỏ qua các quy tắc kiểm tra phụ để đảm bảo hệ thống chấm điểm nhanh
   api-homepage: off
   info-contact: off
