@@ -1,44 +1,34 @@
-# syntax=docker/dockerfile:1.7
+FROM python:3.10-slim
 
-FROM python:3.11-slim AS builder
-
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-
-WORKDIR /build
-
-RUN python -m venv /opt/venv
-
-COPY requirements.txt .
-
-RUN /opt/venv/bin/pip install --no-cache-dir --upgrade pip \
-    && /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
-
-
-FROM python:3.11-slim AS runtime
-
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-ENV PATH="/opt/venv/bin:$PATH"
-ENV APP_HOST=0.0.0.0
-ENV APP_PORT=8000
-ENV AUTH_TOKEN=local-dev-token
-
+# Thiết lập thư mục làm việc
 WORKDIR /app
 
-RUN addgroup --system appgroup \
-    && adduser --system --ingroup appgroup --home /app appuser
+# Khởi tạo user hệ thống non-root để đảm bảo bảo mật cho container
+RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 
-COPY --from=builder /opt/venv /opt/venv
-COPY src/ ./src/
+# Sao chép và cài đặt các thư viện Python cần thiết
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
+# Sao chép toàn bộ mã nguồn của service vào container
+COPY src/ ./src
+
+# Cấp quyền sở hữu thư mục cho user non-root
 RUN chown -R appuser:appgroup /app
 
+# Chuyển sang sử dụng user non-root
 USER appuser
 
+# Cấu hình biến môi trường mặc định
+ENV PORT=8000
+ENV HOST=0.0.0.0
+
+# Khai báo cổng lắng nghe bên trong mạng của Docker
 EXPOSE 8000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).read()" || exit 1
+# Cấu hình tính năng kiểm tra trạng thái Container (HEALTHCHECK)
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8000/health || exit 1
 
-CMD ["sh", "-c", "uvicorn iot_app.main:app --app-dir src --host ${APP_HOST} --port ${APP_PORT}"]
+# Lệnh khởi chạy ứng dụng chính thức
+CMD ["python", "-m", "uvicorn", "iot_app.main:app", "--app-dir", "src", "--host", "0.0.0.0", "--port", "8000"]
