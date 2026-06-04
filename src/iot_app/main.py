@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 SERVICE_NAME = os.getenv("SERVICE_NAME", "iot-ingestion")
 SERVICE_VERSION = os.getenv("SERVICE_VERSION", "0.4.0")
-AUTH_TOKEN = os.getenv("AUTH_TOKEN", "mock_secret_token")
+AUTH_TOKEN = os.getenv("AUTH_TOKEN", "local-dev-token")
 
 app = FastAPI(
     title="FIT4110 Lab 04 - IoT Ingestion Service",
@@ -110,7 +110,9 @@ def verify_bearer_token(authorization: Optional[str] = Header(default=None)) -> 
                 problem_type="https://smart-campus.local/problems/unauthorized",
             ),
         )
-    expected = "Bearer mock_secret_token"
+    
+    # ĐỌC BIẾN AUTH_TOKEN LINH HOẠT TỪ MÔI TRƯỜNG ĐỂ KHỚP VỚI POSTMAN CỦA TRƯỜNG
+    expected = f"Bearer {AUTH_TOKEN}"
     if authorization != expected:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
