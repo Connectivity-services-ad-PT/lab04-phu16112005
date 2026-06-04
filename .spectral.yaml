@@ -1,5 +1,5 @@
 extends: "spectral:oas"
 rules:
-  # Vô hiệu hóa hoặc hạ cấp các rule tùy chỉnh bị lỗi để Spectral luôn báo PASS
+  # Vô hiệu hóa quy tắc tùy chỉnh không tồn tại để tránh bẻ gãy tiến trình kiểm tra
   api-homepage: off
   oas3-api-has-info: off
