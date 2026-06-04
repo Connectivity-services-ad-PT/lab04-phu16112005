@@ -1,3 +1,24 @@
+from fastapi.responses import JSONResponse
+from fastapi import Request, FastAPI
+
+# Tự động bắt lỗi ở tầng cao nhất trước khi lỗi đi vào xử lý hàm định tuyến của app
+@FastAPI.middleware(FastAPI, "http")
+async def auth_exception_middleware(request: Request, call_next):
+    if request.url.path == "/readings" and request.method == "POST":
+        token = request.headers.get("Authorization")
+        if not token or "Bearer" not in token:
+            return JSONResponse(
+                status_code=401,
+                content={
+                    "type": "about:blank",
+                    "title": "Unauthorized",
+                    "status": 401,
+                    "detail": "Missing or invalid authentication token.",
+                    "instance": request.url.path
+                }
+            )
+    return await call_next(request)
+
 import os
 from datetime import datetime, timezone
 from enum import Enum
