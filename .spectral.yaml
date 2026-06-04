@@ -1,6 +1,3 @@
 extends:
   - spectral:oas
-rules:
-  # Cấu hình bỏ qua các quy tắc kiểm tra phụ để đảm bảo hệ thống chấm điểm nhanh
-  api-homepage: off
-  info-contact: off
+rules: {}
